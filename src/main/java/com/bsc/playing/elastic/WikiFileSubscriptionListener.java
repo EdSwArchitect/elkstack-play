@@ -59,8 +59,12 @@ public class WikiFileSubscriptionListener extends SubscriptionAdapter {
             log.error(sw.toString());
         }
 
-    }
+        if (out == null) {
+            log.error("File not created.");
+            System.exit(1);
+        }
 
+    }
 
     @Override
     public void onSubscriptionData(SubscriptionData data) {
@@ -98,14 +102,7 @@ public class WikiFileSubscriptionListener extends SubscriptionAdapter {
 //                firstOne = false;
 //            }
             ++counter;
-        }
-
-//
-//        for (String json : list) {
-//            out.println(json);
-//
-//            ++counter;
-//        } // for (AnyJson json : data.getMessages()) {
+        } // for (AnyJson json : iterator) {
 
         success.countDown();
 

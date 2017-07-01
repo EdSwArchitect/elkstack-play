@@ -4,16 +4,11 @@ import com.satori.rtm.RtmClient;
 import com.satori.rtm.RtmClientAdapter;
 import com.satori.rtm.RtmClientBuilder;
 import com.satori.rtm.SubscriptionMode;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.InetAddress;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -23,58 +18,26 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Created by EdwinBrown on 6/17/2017.
  */
-public class WikiInfoToFile {
+public class WikiInfoToKafka {
     public static final String channel = "wiki-rc-feed";
-    public static Logger log = LoggerFactory.getLogger(WikiInfoToFile.class);
+    public static Logger log = LoggerFactory.getLogger(WikiInfoToKafka.class);
     public static String endpoint = "wss://open-data.api.satori.com";
     public static String appKey = "a6dB62fb8E5C23F13dA9Aba3a755fa80";
-
-    public static PreBuiltXPackTransportClient getClient(String clusterName, String host, int port) {
-        TransportClient client = null;
-
-        try {
-            Settings settings = Settings.builder()
-//                    .put("cluster.name", clusterName)
-                    .put("client.transport.sniff", true)
-                    .put("xpack.security.user", "transport_client_user:changeme")
-                    .build();
-
-            client = new PreBuiltXPackTransportClient(settings);
-            client = client.addTransportAddresses(new InetSocketTransportAddress(InetAddress.getByName(host), port),
-                    new InetSocketTransportAddress(InetAddress.getByName(host), port + 1));
-
-        } catch (Exception exp) {
-            StringWriter sw = new StringWriter();
-            PrintWriter pw = new PrintWriter(sw);
-
-            exp.printStackTrace(pw);
-
-            log.info(sw.toString());
-        }
-
-        return (PreBuiltXPackTransportClient) client;
-    }
 
     /**
      * @param args
      */
     public static void main(String... args) {
-        String fileName = "wiki-";
-        String directory = "C:\\dev\\data\\wiki";
         int numberOfRecords = 100;
 
-        if (args.length == 3) {
-            directory = args[0];
-            fileName = args[1];
-
+        if (args.length == 1) {
             try {
-                numberOfRecords = Integer.parseInt(args[2]);
+                numberOfRecords = Integer.parseInt(args[0]);
             }
             catch(NumberFormatException nfe) {
-                log.warn("Argument {} is not a number.");
+                log.warn("Argument {} is not a number. Defaulting to 100.", args[0]);
             }
-        }
-
+        } // if (args.length == 1) {
 
         try {
 
@@ -98,9 +61,9 @@ public class WikiInfoToFile {
 
             for (int i = 0; i < numberOfRecords; i++) {
                 uuids[i] = UUID.randomUUID().toString();
-            }
+            } // for (int i = 0; i < numberOfRecords; i++) {
 
-            WikiFileSubscriptionListener listener = new WikiFileSubscriptionListener(directory, fileName, success);
+            WikiKafkaSubscriptionListener listener = new WikiKafkaSubscriptionListener(success);
 
             client.createSubscription(channel, SubscriptionMode.SIMPLE, listener);
 
@@ -109,7 +72,6 @@ public class WikiInfoToFile {
             success.await(5, TimeUnit.MINUTES);
 
             client.shutdown();
-            listener.cleanup();
 
         } catch (Exception exp) {
             StringWriter sw = new StringWriter();
