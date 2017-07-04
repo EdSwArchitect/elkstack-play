@@ -40,7 +40,8 @@ public class LoadWikiInfo {
             Settings settings = Settings.builder()
 //                    .put("cluster.name", clusterName)
                     .put("client.transport.sniff", true)
-                    .put("xpack.security.user", "transport_client_user:changeme")
+//                    .put("xpack.security.user", "transport_client_user:changeme")
+                    .put("xpack.security.user", "elastic:changeme")
                     .build();
 
             client = new PreBuiltXPackTransportClient(settings);
