@@ -1,18 +1,19 @@
 package com.bsc.playing.elastic;
 
+import com.bsc.playing.elastic.data.WikiInfo;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.satori.rtm.SubscriptionAdapter;
+import com.satori.rtm.model.AnyJson;
 import com.satori.rtm.model.SubscriptionData;
 import com.satori.rtm.model.SubscriptionError;
 import com.satori.rtm.model.SubscriptionInfo;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.client.transport.TransportClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -22,57 +23,42 @@ public class WikiSubscriptionListener extends SubscriptionAdapter {
     private static Logger log = LoggerFactory.getLogger(WikiSubscriptionListener.class);
     private int counter = 0;
     private CountDownLatch success;
-    private TransportClient client;
-    private BulkRequestBuilder bulkRequest;
+    private ObjectMapper mapper;
 
-    public WikiSubscriptionListener(TransportClient client, CountDownLatch success) {
+    public WikiSubscriptionListener(CountDownLatch success) {
         this.success = success;
-        this.client = client;
-        this.bulkRequest = client.prepareBulk();
+        mapper = new ObjectMapper();
     }
 
 
     @Override
     public void onSubscriptionData(SubscriptionData data) {
-        List<Map> list = data.getMessagesAsType(Map.class);
+        Iterable<AnyJson> list = data.getMessages();
 
-        log.info("Number of messages: {}", list.size());
+        try {
+            for (AnyJson json : list) {
 
-        for (Map map : list) {
+                WikiInfo wi = mapper.readValue(json.toString(), WikiInfo.class);
 
-//        for (AnyJson json : data.getMessages()) {
-//            log.info("{}. Got message: {}", counter, json);
+                log.info("Parsed: {} ", wi);
 
-            log.info("{}. Got message: {}", counter, map);
+                if (wi.getGeoIp() != null) {
+                    log.info("{}", json);
+                }
 
-//            Map foo = json.convertToType(Map.class);
-//
-//            log.info("{}, The map: {}", counter, foo);
+            } // for (AnyJson json : data.getMessages()) {
+        } catch (IOException e) {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
 
-            bulkRequest.add(client.prepareIndex("wiki", "wiki", UUID.randomUUID().toString()).
-                    setSource(map));
+            e.printStackTrace(pw);
 
-            ++counter;
-        } // for (AnyJson json : data.getMessages()) {
+            log.error(sw.toString());
+
+        }
 
         success.countDown();
 
-        log.info("*** bulkRequest count: {}", bulkRequest.numberOfActions());
-
-        if (bulkRequest.numberOfActions() >= 50) {
-            BulkResponse bulkResponse = bulkRequest.get();
-            if (!bulkResponse.hasFailures()) {
-                log.info("**** bulk insert worked");
-
-            } // if (!bulkResponse.hasFailures()) {
-            else {
-                log.error("ElasticSearch failure messages: {}", bulkResponse.buildFailureMessage());
-                // process failures by iterating through each bulk response item
-            }
-
-            bulkRequest = client.prepareBulk();
-
-        } // if (bulkRequest.numberOfActions() >= 50) {
     }
 
     @Override

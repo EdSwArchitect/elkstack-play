@@ -1,6 +1,9 @@
 package com.bsc.playing.elastic;
 
-import com.satori.rtm.*;
+import com.satori.rtm.RtmClient;
+import com.satori.rtm.RtmClientAdapter;
+import com.satori.rtm.RtmClientBuilder;
+import com.satori.rtm.SubscriptionMode;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -20,50 +23,17 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Created by EdwinBrown on 6/17/2017.
  */
-public class LoadWikiInfo {
+public class ShowWikiInfo {
     public static final String channel = "wiki-rc-feed";
-    public static Logger log = LoggerFactory.getLogger(LoadWikiInfo.class);
+    public static Logger log = LoggerFactory.getLogger(ShowWikiInfo.class);
     public static String endpoint = "wss://open-data.api.satori.com";
     public static String appKey = "a6dB62fb8E5C23F13dA9Aba3a755fa80";
-    public static PreBuiltXPackTransportClient eClient;
-
-
-    public static PreBuiltXPackTransportClient getClient(String clusterName, String host, int port) {
-        TransportClient client = null;
-
-        try {
-            Settings settings = Settings.builder()
-//                    .put("cluster.name", clusterName)
-                    .put("client.transport.sniff", true)
-//                    .put("xpack.security.user", "transport_client_user:changeme")
-                    .put("xpack.security.user", "elastic:changeme")
-                    .build();
-
-            client = new PreBuiltXPackTransportClient(settings);
-            client = client.addTransportAddresses(new InetSocketTransportAddress(InetAddress.getByName(host), port),
-                    new InetSocketTransportAddress(InetAddress.getByName(host), port + 1));
-
-        } catch (Exception exp) {
-            StringWriter sw = new StringWriter();
-            PrintWriter pw = new PrintWriter(sw);
-
-            exp.printStackTrace(pw);
-
-            log.info(sw.toString());
-        }
-
-        return (PreBuiltXPackTransportClient) client;
-    }
 
     /**
      * @param args
      */
     public static void main(String... args) {
         log.info("Hi, Ed");
-
-        eClient = getClient("elasticsearch", "localhost", 9300);
-
-        log.info("Got ES connection");
 
         try {
 
@@ -83,13 +53,7 @@ public class LoadWikiInfo {
 
             final CountDownLatch success = new CountDownLatch(100);
 
-            String[] uuids = new String[100];
-
-            for (int i = 0; i < 100; i++) {
-                uuids[i] = UUID.randomUUID().toString();
-            }
-
-            WikiElasticSubscriptionListener listener = new WikiElasticSubscriptionListener(eClient, success);
+            WikiSubscriptionListener listener = new WikiSubscriptionListener(success);
 
             client.createSubscription(channel, SubscriptionMode.SIMPLE, listener);
 
@@ -98,15 +62,13 @@ public class LoadWikiInfo {
             success.await(5, TimeUnit.MINUTES);
 
             client.shutdown();
-
-            eClient.close();
         } catch (Exception exp) {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
 
             exp.printStackTrace(pw);
 
-            log.info(sw.toString());
+            log.error(sw.toString());
         }
     }
 
