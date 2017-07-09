@@ -17,8 +17,7 @@ public class ParserTest {
     String json = "{\"action\":\"hit\",\"change_size\":12,\"flags\":\"MD\"," +
             "\"geo_ip\":{\"city\":\"Jinju\"," +
             "\"country_name\":\"Republic of Korea\",\"latitude\":35.1928,\"longitude\":128.0847," +
-            "\"region_name\":\"Gyeongsangnam-do\"},\"hashtags\":[\"strang\",\"strang2\"],\"is_anon\":true," +
-            "\"is_bot\":false," +
+            "\"region_name\":\"Gyeongsangnam-do\"},\"hashtags\":[\"strang\"],\"is_anon\":true,\"is_bot\":false," +
             "\"is_minor\":false,\"is_new\":false,\"is_unpatrolled\":false,\"mentions\":[],\"ns\":\"Special\",\"page_title\":\"Special:Log/abusefilter\",\"summary\":\"1.254.6.66 triggered [[Special:AbuseFilter/345|filter 345]], performing the action \\\"edit\\\" on [[MIL-STD-188]]. Actions taken: Warn ([[Special:AbuseLog/18840432|details]])\",\"user\":\"1.254.6.66\"}";
 
     @Test

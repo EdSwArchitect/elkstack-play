@@ -23,11 +23,13 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Created by EdwinBrown on 6/17/2017.
  */
-public class WikiInfoToFile {
+public class LoadWikiInfo2 {
     public static final String channel = "wiki-rc-feed";
-    public static Logger log = LoggerFactory.getLogger(WikiInfoToFile.class);
+    public static Logger log = LoggerFactory.getLogger(LoadWikiInfo2.class);
     public static String endpoint = "wss://open-data.api.satori.com";
     public static String appKey = "a6dB62fb8E5C23F13dA9Aba3a755fa80";
+    public static PreBuiltXPackTransportClient eClient;
+
 
     public static PreBuiltXPackTransportClient getClient(String clusterName, String host, int port) {
         TransportClient client = null;
@@ -36,7 +38,8 @@ public class WikiInfoToFile {
             Settings settings = Settings.builder()
 //                    .put("cluster.name", clusterName)
                     .put("client.transport.sniff", true)
-                    .put("xpack.security.user", "transport_client_user:changeme")
+//                    .put("xpack.security.user", "transport_client_user:changeme")
+                    .put("xpack.security.user", "elastic:changeme")
                     .build();
 
             client = new PreBuiltXPackTransportClient(settings);
@@ -59,22 +62,26 @@ public class WikiInfoToFile {
      * @param args
      */
     public static void main(String... args) {
-        String fileName = "wiki-";
-        String directory = "C:\\dev\\data\\wiki";
-        int numberOfRecords = 100;
 
-        if (args.length == 3) {
-            directory = args[0];
-            fileName = args[1];
+        String index = "wikiFull";
+        String type = "wikiFull";
+        int max = 500;
 
+        if (args.length  == 3) {
+            index = args[0];
+            type = args[1];
             try {
-                numberOfRecords = Integer.parseInt(args[2]);
+                max = Integer.parseInt(args[2]);
             }
             catch(NumberFormatException nfe) {
-                log.warn("Argument {} is not a number.");
+                log.warn("Number format exception. Setting default max to 500");
+                max = 500;
             }
         }
 
+        eClient = getClient("elasticsearch", "localhost", 9300);
+
+        log.info("Got ES connection");
 
         try {
 
@@ -92,25 +99,26 @@ public class WikiInfoToFile {
                     })
                     .build();
 
-            final CountDownLatch success = new CountDownLatch(numberOfRecords);
+            final CountDownLatch success = new CountDownLatch(max);
 
-            String[] uuids = new String[numberOfRecords];
+            String[] uuids = new String[max];
 
-            for (int i = 0; i < numberOfRecords; i++) {
+            for (int i = 0; i < max; i++) {
                 uuids[i] = UUID.randomUUID().toString();
             }
 
-            WikiFileSubscriptionListener2 listener = new WikiFileSubscriptionListener2(directory, fileName, success);
+            WikiElasticSubscriptionListener2 listener = new WikiElasticSubscriptionListener2(eClient, success,
+                    index, type);
 
             client.createSubscription(channel, SubscriptionMode.SIMPLE, listener);
 
             client.start();
 
-            success.await(5, TimeUnit.MINUTES);
+            success.await(30, TimeUnit.MINUTES);
 
             client.shutdown();
-            listener.cleanup();
 
+            eClient.close();
         } catch (Exception exp) {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);

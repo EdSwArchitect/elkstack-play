@@ -1,18 +1,27 @@
 package com.bsc.playing.elastic;
 
+import com.bsc.playing.elastic.data.GeoIp;
 import com.bsc.playing.elastic.data.WikiInfo;
 import com.satori.rtm.SubscriptionAdapter;
+import com.satori.rtm.model.AnyJson;
 import com.satori.rtm.model.SubscriptionData;
 import com.satori.rtm.model.SubscriptionError;
 import com.satori.rtm.model.SubscriptionInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -29,25 +38,45 @@ public class WikiElasticSubscriptionListener2 extends SubscriptionAdapter {
     private CountDownLatch success;
     private TransportClient client;
     private BulkRequestBuilder bulkRequest;
+    private String index;
+    private String type;
+    //"yyyy-MMM-dd HH:mm:ss"
+    private static String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
+    private SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_FORMAT);
 
-    public WikiElasticSubscriptionListener2(TransportClient client, CountDownLatch success) {
+
+
+    /**
+     *
+     * @param client
+     * @param success
+     * @param index
+     * @param type
+     */
+    public WikiElasticSubscriptionListener2(TransportClient client, CountDownLatch success, String index, String type) {
         this.success = success;
         this.client = client;
+        this.index = index;
+        this.type = type;
         this.bulkRequest = client.prepareBulk();
+
+        dateFormat = new SimpleDateFormat(DATE_FORMAT);
+        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
 
     @Override
     public void onSubscriptionData(SubscriptionData data) {
 
-        List<String> list = data.getMessagesAsStrings();
+        Iterable<AnyJson> iterable = data.getMessages();
 
-        log.info("Number of messages: {}", list.size());
         WikiInfo wi = null;
 
-        for (String json : list) {
+        for (AnyJson jayson : iterable) {
 
-            log.info("{}. Got message: {}", counter, json);
+            log.info("{}. Got message: {}", counter, jayson.toString());
+
+            String json = jayson.toString();
 
             try {
                 wi = WikiInfo.parseIt(json);
@@ -57,41 +86,156 @@ public class WikiElasticSubscriptionListener2 extends SubscriptionAdapter {
 // "ns":"Main","page_title":"Eljero Elia","parent_rev_id":"789383260","rev_id":"787513639","summary":null,
 // "url":"https://en.wikipedia.org/w/index.php?diff=789383260&oldid=787513639","user":"51.174.232.183"}
 
+                String action = wi.getAction();
                 String flags = wi.getFlags();
+                String[] hashTag = wi.getHashtags();
+                String[] mentions = wi.getMentions();
+                String ns  = wi.getNs();
+                String pageTitle = wi.getPageTitle();
+                String url = wi.getUrl();
+                String user = wi.getUser();
+                String parentRevId = wi.getParentRevId();
+                String revId = wi.getRevId();
+                String summary = wi.getSummary();
+                long time = System.currentTimeMillis();
 
-                //TODO Doesn't account for null values. Do this the long hard way :(
+                XContentBuilder obj = jsonBuilder().startObject().field("action", action);
 
+                obj = obj.field("timestamp", dateFormat.format(new Date(time)));
+
+
+                obj = obj.field("change_size", wi.getChangeSize());
+
+                if (flags != null) {
+                    obj = obj.field("flags", flags);
+                } // if (flags != null) {
+                else {
+                    obj = obj.nullField("flags");
+                }
+
+                GeoIp geoIp = wi.getGeoIp();
+
+                if (geoIp != null) {
+                    String city = geoIp.getCity();
+                    String countryName = geoIp.getCountryName();
+                    String regionName = geoIp.getRegionName();
+
+                    obj = obj.startObject("geo_ip");
+
+                    if (city != null) {
+                        obj = obj.field("city", city);
+                    }
+                    else {
+                        obj = obj.nullField("city");
+                    }
+                    if (countryName != null) {
+                        obj = obj.field("country_name", countryName);
+                    }
+                    else {
+                        obj = obj.nullField("country_name");
+                    }
+
+                    obj = obj.field("latitude", geoIp.getLatitude());
+                    obj = obj.field("longitude", geoIp.getLongitude());
+
+                    if (regionName != null) {
+                        obj = obj.field("region_name", regionName);
+                    }
+                    else {
+                        obj = obj.nullField("region_name");
+                    }
+
+                    obj = obj.endObject();
+
+                } // if (geoIp != null) {
+                else {
+                    obj = obj.nullField("geo_ip");
+                }
+
+                if (hashTag != null) {
+                    obj = obj.array("hashtags", hashTag);
+                } // if (hashTag != null) {
+                else {
+                    obj = obj.startArray("hashtags").nullValue().endArray();
+                }
+
+                obj = obj.field("is_anon", wi.isAnon());
+                obj = obj.field("is_bot", wi.isBot());
+                obj = obj.field("is_minor", wi.isMinor());
+                obj = obj.field("is_new", wi.isNew());
+                obj = obj.field("is_unpatrolled", wi.isUnparolled());
+
+                if (mentions != null) {
+                    obj = obj.array("mentions", mentions);
+                } // if (hashTag != null) {
+                else {
+                    obj = obj.startArray("mentions").nullValue().endArray();
+                }
+
+                if (ns != null) {
+                    obj = obj.field("ns", wi.getNs());
+                }
+                else {
+                    obj = obj.nullField("ns");
+                }
+
+                if (pageTitle != null) {
+                    obj = obj.field("page_title", pageTitle);
+                }
+                else {
+                    obj = obj.nullField("page_title");
+                }
+
+                if (parentRevId != null) {
+                    obj = obj.field("parent_rev_d", parentRevId);
+                }
+                else {
+                    obj = obj.nullField("parent_rev_id");
+                }
+
+                if (revId != null) {
+                    obj = obj.field("rev_id", revId);
+                }
+                else {
+                    obj = obj.nullField("rev_id");
+                }
+
+                if (summary != null) {
+                    obj = obj.field("summary", summary);
+                }
+                else {
+                    obj = obj.nullField("summary");
+                }
+
+
+                if (url != null) {
+                    obj = obj.field("url", url);
+                }
+                else {
+                    obj = obj.nullField("url");
+                }
+
+                if (user != null) {
+                    obj = obj.field("user", user);
+                }
+                else {
+                    obj = obj.nullField("user");
+                }
+
+                obj = obj.endObject();
 
 // either use client#prepare, or use Requests# to directly build index/delete requests
-                bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
-                        .setSource(jsonBuilder()
-                                .startObject()
-                                .field("action", wi.getAction())
-                                .field("change_size", wi.getChangeSize())
-                                .field("flags", wi.getFlags())
-                                // geo_ip
-                                .field("action", wi.getAction())
-                                .field("hashtags", wi.getHashtags())
-                                .startArray().array("hashtags", wi.getHashtags()).endArray()
-                                .field("is_anon", wi.isAnon())
-                                .field("is_bot", wi.isBot())
-                                .field("is_minor", wi.isMinor())
-                                .field("is_new", wi.isNew())
-                                .field("is_unpatrolled", wi.isUnparolled())
-                                .startArray().array("mentions", wi.getMentions()).endArray()
-                                .field("ns", wi.getNs())
-                                .field("page_title", wi.getPageTitle())
-                                .field("parent_rev_id", wi.getParentRevId())
-                                .field("rev_id", wi.getRevId())
-                                .field("summary", wi.getSummary())
-                                .field("url", wi.getUrl())
-                                .field("user", wi.getUser())
-                                .endObject()
-                        )
-                );
+                bulkRequest.add(client.prepareIndex(index, type, UUID.randomUUID().toString())
+                        .setSource(obj));
 
             } catch (IOException e) {
-                e.printStackTrace();
+
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+
+                e.printStackTrace(pw);
+
+                log.error(sw.toString());
             }
 
             ++counter;
