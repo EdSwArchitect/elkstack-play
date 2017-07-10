@@ -81,11 +81,11 @@ public class LoadWikiInfo {
                     })
                     .build();
 
-            final CountDownLatch success = new CountDownLatch(100);
+            final CountDownLatch success = new CountDownLatch(2000);
 
-            String[] uuids = new String[100];
+            String[] uuids = new String[2000];
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 2000; i++) {
                 uuids[i] = UUID.randomUUID().toString();
             }
 
@@ -95,7 +95,7 @@ public class LoadWikiInfo {
 
             client.start();
 
-            success.await(5, TimeUnit.MINUTES);
+            success.await(25, TimeUnit.MINUTES);
 
             client.shutdown();
 

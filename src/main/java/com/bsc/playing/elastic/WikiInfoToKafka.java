@@ -69,7 +69,7 @@ public class WikiInfoToKafka {
 
             client.start();
 
-            success.await(5, TimeUnit.MINUTES);
+            success.await(15, TimeUnit.MINUTES);
 
             client.shutdown();
 
